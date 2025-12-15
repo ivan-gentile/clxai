@@ -1,6 +1,6 @@
 """
 Classification methods for SCL embeddings.
-Implements k-NN, Linear Probe, and Mahalanobis distance classifiers.
+Implements k-NN, Linear Probe, Mahalanobis distance, and SVM classifiers.
 """
 
 import numpy as np
@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
 from typing import Optional, Dict
 
 
@@ -201,6 +203,132 @@ class MahalanobisClassifier:
         return np.array(all_distances)
 
 
+class SVMClassifier:
+    """
+    Linear SVM classifier for SCL embeddings.
+    
+    Fast, no retraining needed - suitable for quick validation
+    of embedding quality as suggested in the guidelines.
+    """
+    
+    def __init__(
+        self,
+        kernel: str = 'linear',
+        C: float = 1.0,
+        probability: bool = True,
+        scale_features: bool = True,
+        random_state: int = 42
+    ):
+        """
+        Args:
+            kernel: SVM kernel ('linear', 'rbf', 'poly')
+            C: Regularization parameter
+            probability: Enable probability estimates (slower but useful for XAI)
+            scale_features: Whether to standardize features before fitting
+            random_state: Random seed for reproducibility
+        """
+        self.kernel = kernel
+        self.C = C
+        self.probability = probability
+        self.scale_features = scale_features
+        self.random_state = random_state
+        
+        self.svm = None
+        self.scaler = None
+        self.is_fitted = False
+    
+    def fit(self, embeddings: np.ndarray, labels: np.ndarray):
+        """
+        Fit SVM classifier on embeddings.
+        
+        Args:
+            embeddings: Training embeddings of shape (N, D)
+            labels: Training labels of shape (N,)
+        """
+        # Optionally scale features
+        if self.scale_features:
+            self.scaler = StandardScaler()
+            embeddings = self.scaler.fit_transform(embeddings)
+        
+        # Initialize and fit SVM
+        self.svm = SVC(
+            kernel=self.kernel,
+            C=self.C,
+            probability=self.probability,
+            random_state=self.random_state,
+            class_weight='balanced'  # Handle class imbalance
+        )
+        self.svm.fit(embeddings, labels)
+        self.is_fitted = True
+    
+    def _preprocess(self, embeddings: np.ndarray) -> np.ndarray:
+        """Apply scaling if enabled."""
+        if self.scale_features and self.scaler is not None:
+            return self.scaler.transform(embeddings)
+        return embeddings
+    
+    def predict(self, embeddings: np.ndarray) -> np.ndarray:
+        """
+        Predict class labels.
+        
+        Args:
+            embeddings: Embeddings of shape (N, D)
+        
+        Returns:
+            Predicted labels of shape (N,)
+        """
+        if not self.is_fitted:
+            raise RuntimeError("Classifier not fitted.")
+        embeddings = self._preprocess(embeddings)
+        return self.svm.predict(embeddings)
+    
+    def predict_proba(self, embeddings: np.ndarray) -> np.ndarray:
+        """
+        Predict class probabilities.
+        
+        Args:
+            embeddings: Embeddings of shape (N, D)
+        
+        Returns:
+            Probability matrix of shape (N, C)
+        """
+        if not self.is_fitted:
+            raise RuntimeError("Classifier not fitted.")
+        if not self.probability:
+            raise RuntimeError("SVM was initialized with probability=False")
+        embeddings = self._preprocess(embeddings)
+        return self.svm.predict_proba(embeddings)
+    
+    def score(self, embeddings: np.ndarray, labels: np.ndarray) -> float:
+        """
+        Compute classification accuracy.
+        
+        Args:
+            embeddings: Test embeddings of shape (N, D)
+            labels: True labels of shape (N,)
+        
+        Returns:
+            Accuracy score
+        """
+        predictions = self.predict(embeddings)
+        return (predictions == labels).mean()
+    
+    def decision_function(self, embeddings: np.ndarray) -> np.ndarray:
+        """
+        Get signed distance to decision boundary.
+        
+        Args:
+            embeddings: Embeddings of shape (N, D)
+        
+        Returns:
+            Decision values (distance to hyperplane)
+        """
+        if not self.is_fitted:
+            raise RuntimeError("Classifier not fitted.")
+        embeddings = self._preprocess(embeddings)
+        return self.svm.decision_function(embeddings)
+
+
 if __name__ == "__main__":
     np.random.seed(42)
     
@@ -235,3 +363,15 @@ if __name__ == "__main__":
     maha.fit(train_emb, train_labels)
     maha_acc = maha.score(test_emb, test_labels)
     print(f"Mahalanobis accuracy: {maha_acc:.4f}")
+    
+    # Test SVM classifier
+    svm = SVMClassifier(kernel='linear', C=1.0)
+    svm.fit(train_emb, train_labels)
+    svm_acc = svm.score(test_emb, test_labels)
+    print(f"SVM (linear) accuracy: {svm_acc:.4f}")
+    
+    # Test SVM with RBF kernel
+    svm_rbf = SVMClassifier(kernel='rbf', C=1.0)
+    svm_rbf.fit(train_emb, train_labels)
+    svm_rbf_acc = svm_rbf.score(test_emb, test_labels)
+    print(f"SVM (RBF) accuracy: {svm_rbf_acc:.4f}")

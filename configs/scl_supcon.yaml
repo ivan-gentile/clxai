@@ -1,5 +1,6 @@
 # Supervised Contrastive Learning Configuration
 # Based on SupCon paper hyperparameters
+# Reference: Khosla et al. "Supervised Contrastive Learning" (NeurIPS 2020)
 
 model:
   architecture: resnet18_encoder
@@ -11,8 +12,13 @@ training:
   lr: 0.5
   momentum: 0.9
   weight_decay: 0.0001
-  temperature: 0.07
   warmup_epochs: 10
+  
+  # SupCon loss specific parameters
+  loss: supcon
+  supcon:
+    temperature: 0.07
+    base_temperature: 0.07
 
 data:
   dataset: cifar10

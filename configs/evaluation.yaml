@@ -13,6 +13,21 @@ models:
     checkpoint: results/models/scl/best_model.pt
     type: scl
     classifier: linear
+  scl_svm:
+    checkpoint: results/models/scl/best_model.pt
+    type: scl
+    classifier: svm
+    svm_kernel: linear
+    svm_C: 1.0
+  scl_mahalanobis:
+    checkpoint: results/models/scl/best_model.pt
+    type: scl
+    classifier: mahalanobis
+  triplet_knn:
+    checkpoint: results/models/triplet/best_model.pt
+    type: triplet
+    classifier: knn
+    knn_k: 10
 
 xai_methods:
   - vanilla_grad
@@ -32,6 +47,18 @@ pixel_flipping:
 embedding_analysis:
   n_samples: 500
   n_steps: 20
+
+# ECE Faithfulness evaluation (Marco's innovative metric)
+ece_faithfulness:
+  enabled: true
+  n_bins: 10
+  removal_order: most_important_first
+  
+  # Metrics to compute:
+  # - ece: Expected Calibration Error
+  # - slope: Should be ~1.0 for perfect faithfulness
+  # - r_squared: Higher = more predictable behavior
+  # - calibration_score: Combined metric (higher = better)
 
 output:
   results_dir: results/evaluation
