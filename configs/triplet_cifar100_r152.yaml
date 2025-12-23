@@ -39,3 +39,4 @@ logging:
 
 output:
   output_dir: results/models/cifar100_r152/triplet
+

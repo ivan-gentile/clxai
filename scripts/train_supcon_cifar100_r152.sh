@@ -44,3 +44,4 @@ python src/training/train_scl.py \
 echo ""
 echo "Training completed at: $(date)"
 echo "=========================================="
+

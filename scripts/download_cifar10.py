@@ -44,3 +44,4 @@ for item in os.listdir(DATA_DIR):
     else:
         size = os.path.getsize(item_path) / (1024*1024)
         print(f"  {item} ({size:.1f} MB)")
+

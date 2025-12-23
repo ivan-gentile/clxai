@@ -107,3 +107,4 @@ echo "  - results/models/cifar100_r152/triplet/"
 echo ""
 echo "To sync wandb logs, run:"
 echo "  wandb sync wandb/offline-run-*"
+

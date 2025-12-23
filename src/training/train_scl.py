@@ -69,7 +69,12 @@ def train_epoch_scl(
         optimizer.zero_grad()
         
         # Get embeddings
-        embeddings = model(images)
+        # FIX: For triplet loss, use unnormalized embeddings to avoid collapse
+        # L2-normalized embeddings + Euclidean distance + hard mining = collapse
+        if loss_type == 'triplet':
+            embeddings = model.get_embedding(images, normalize=False)
+        else:
+            embeddings = model(images)
         
         # Compute loss
         loss = criterion(embeddings, labels)
@@ -226,9 +231,10 @@ def train_scl_model(config: dict):
     warmup_epochs = config.get('warmup_epochs', 10)
     
     # Warmup + Cosine schedule
+    # FIX: Start warmup at 0.1 instead of 0 to avoid zero learning in first epoch
     def lr_lambda(epoch):
         if epoch < warmup_epochs:
-            return epoch / warmup_epochs
+            return 0.1 + 0.9 * (epoch / warmup_epochs)  # 0.1 -> 1.0 during warmup
         else:
             return 0.5 * (1 + np.cos(np.pi * (epoch - warmup_epochs) / (epochs - warmup_epochs)))
     
