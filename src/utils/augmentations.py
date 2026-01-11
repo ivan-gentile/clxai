@@ -2,11 +2,17 @@
 Custom data augmentations for CLXAI.
 
 Includes:
-- RandomPatchRemoval: F-Fidelity style occlusion augmentation
+- RandomPatchRemoval: Rectangular patch removal augmentation (our approach)
+- RandomPixelRemoval: F-Fidelity style scattered pixel removal (ICLR 2025)
 - GaussianNoiseAugmentation: Additive Gaussian noise for perturbation robustness
+
+References:
+- F-Fidelity: Zheng et al., "F-Fidelity: A Robust Framework for Faithfulness 
+  Evaluation of Explainable AI", ICLR 2025. https://arxiv.org/abs/2410.02970
 """
 
 import random
+import numpy as np
 import torch
 from typing import Tuple, Optional
 
@@ -97,6 +103,74 @@ class RandomPatchRemoval:
                 f'replacement={self.replacement})')
 
 
+class RandomPixelRemoval:
+    """
+    F-Fidelity style random pixel removal augmentation (ICLR 2025).
+    
+    Randomly removes SCATTERED INDIVIDUAL PIXELS from images by setting them to 0.
+    This is the exact implementation from the F-Fidelity paper, which differs from
+    our RandomPatchRemoval that removes contiguous rectangular patches.
+    
+    Key differences from RandomPatchRemoval:
+    - Removes individual scattered pixels, not contiguous patches
+    - Fixed fraction (not probability-based per image)
+    - Replaces with 0 (black), not dataset mean
+    - Applied to 100% of images during fine-tuning
+    
+    Reference:
+        Zheng et al., "F-Fidelity: A Robust Framework for Faithfulness 
+        Evaluation of Explainable AI", ICLR 2025.
+        https://github.com/AslanDing/Finetune-Fidelity
+    
+    Args:
+        removal_fraction: Fraction of pixels to remove (default: 0.1 = 10%, β in paper)
+        probability: Probability of applying augmentation (default: 1.0 for F-Fidelity)
+    """
+    
+    def __init__(
+        self,
+        removal_fraction: float = 0.1,
+        probability: float = 1.0
+    ):
+        self.removal_fraction = removal_fraction
+        self.probability = probability
+    
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Apply random pixel removal to image.
+        
+        Args:
+            tensor: Tensor of shape (C, H, W) in range [0, 1]
+        
+        Returns:
+            Augmented tensor with scattered pixels set to 0
+        """
+        if random.random() >= self.probability:
+            return tensor
+        
+        if not isinstance(tensor, torch.Tensor):
+            raise TypeError(f"Expected input type torch.Tensor, but got {type(tensor)}")
+        
+        C, H, W = tensor.shape
+        num_pixels = H * W
+        num_pixels_to_remove = int(self.removal_fraction * num_pixels)
+        
+        # Create mask and select random pixels to remove
+        mask = torch.ones(H, W, dtype=tensor.dtype, device=tensor.device)
+        indices = np.random.choice(num_pixels, num_pixels_to_remove, replace=False)
+        mask.view(-1)[indices] = 0
+        
+        # Apply mask (broadcasts across channels)
+        tensor = tensor * mask.unsqueeze(0)
+        
+        return tensor
+    
+    def __repr__(self) -> str:
+        return (f'{self.__class__.__name__}('
+                f'removal_fraction={self.removal_fraction}, '
+                f'probability={self.probability})')
+
+
 class GaussianNoiseAugmentation:
     """
     Additive Gaussian noise augmentation.
@@ -168,7 +242,7 @@ class CombinedAugmentation:
 
 if __name__ == "__main__":
     # Test augmentations
-    print("Testing RandomPatchRemoval...")
+    print("Testing RandomPatchRemoval (our approach)...")
     patch_aug = RandomPatchRemoval(probability=1.0)  # Always apply for testing
     
     # Create dummy image (3, 32, 32)
@@ -178,9 +252,23 @@ if __name__ == "__main__":
     print(f"  Output shape: {aug_img.shape}")
     print(f"  Values changed: {not torch.allclose(img, aug_img)}")
     
+    print("\nTesting RandomPixelRemoval (F-Fidelity style)...")
+    pixel_aug = RandomPixelRemoval(removal_fraction=0.1, probability=1.0)
+    
+    img = torch.rand(3, 32, 32)
+    aug_img = pixel_aug(img)
+    num_zeros = (aug_img == 0).sum().item()
+    expected_zeros = int(0.1 * 32 * 32 * 3)  # 10% of all values (3 channels)
+    print(f"  Input shape: {img.shape}")
+    print(f"  Output shape: {aug_img.shape}")
+    print(f"  Zero values: {num_zeros} (expected ~{expected_zeros} per channel)")
+    print(f"  Removal fraction: {num_zeros / (32 * 32 * 3):.2%}")
+    print(f"  Values changed: {not torch.allclose(img, aug_img)}")
+    
     print("\nTesting GaussianNoiseAugmentation...")
     noise_aug = GaussianNoiseAugmentation(probability=1.0, std=0.05)
     
+    img = torch.rand(3, 32, 32)
     aug_img = noise_aug(img)
     print(f"  Input shape: {img.shape}")
     print(f"  Output shape: {aug_img.shape}")

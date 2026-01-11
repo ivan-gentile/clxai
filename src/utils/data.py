@@ -13,7 +13,7 @@ import torchvision
 import torchvision.transforms as transforms
 from typing import Tuple, Optional
 
-from src.utils.augmentations import RandomPatchRemoval, GaussianNoiseAugmentation
+from src.utils.augmentations import RandomPatchRemoval, RandomPixelRemoval, GaussianNoiseAugmentation
 
 
 # CIFAR-10 statistics
@@ -72,6 +72,18 @@ def get_train_transforms(
             probability=0.5,
             std=0.05
         ))
+    elif augmentation_type == 'pixel':
+        # F-Fidelity style: 10% scattered pixel removal, always applied
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=1.0  # Always apply during training (F-Fidelity default)
+        ))
+    elif augmentation_type == 'pixel50':
+        # F-Fidelity pixel removal with 50% probability (our variation)
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=0.5  # Apply with coin flip like our other augmentations
+        ))
     
     transform_list.append(transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD))
     
@@ -119,6 +131,18 @@ def get_contrastive_transforms(augmentation_type: str = 'none') -> transforms.Co
         transform_list.append(GaussianNoiseAugmentation(
             probability=0.5,
             std=0.05
+        ))
+    elif augmentation_type == 'pixel':
+        # F-Fidelity style: 10% scattered pixel removal, always applied
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=1.0  # Always apply during training (F-Fidelity default)
+        ))
+    elif augmentation_type == 'pixel50':
+        # F-Fidelity pixel removal with 50% probability (our variation)
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=0.5  # Apply with coin flip like our other augmentations
         ))
     
     transform_list.append(transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD))
@@ -307,6 +331,18 @@ def get_cifar100_train_transforms(
             probability=0.5,
             std=0.05
         ))
+    elif augmentation_type == 'pixel':
+        # F-Fidelity style: 10% scattered pixel removal, always applied
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=1.0  # Always apply during training (F-Fidelity default)
+        ))
+    elif augmentation_type == 'pixel50':
+        # F-Fidelity pixel removal with 50% probability (our variation)
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=0.5  # Apply with coin flip like our other augmentations
+        ))
     
     transform_list.append(transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD))
     
@@ -354,6 +390,18 @@ def get_cifar100_contrastive_transforms(augmentation_type: str = 'none') -> tran
         transform_list.append(GaussianNoiseAugmentation(
             probability=0.5,
             std=0.05
+        ))
+    elif augmentation_type == 'pixel':
+        # F-Fidelity style: 10% scattered pixel removal, always applied
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=1.0  # Always apply during training (F-Fidelity default)
+        ))
+    elif augmentation_type == 'pixel50':
+        # F-Fidelity pixel removal with 50% probability (our variation)
+        transform_list.append(RandomPixelRemoval(
+            removal_fraction=0.1,  # β = 10% as in F-Fidelity paper
+            probability=0.5  # Apply with coin flip like our other augmentations
         ))
     
     transform_list.append(transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD))

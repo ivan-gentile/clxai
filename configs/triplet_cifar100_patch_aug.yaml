@@ -1,0 +1,47 @@
+# Triplet Loss with Patch Removal - CIFAR-100 + ResNet-152
+# F-Fidelity style occlusion robustness training
+# Using semi-hard mining to prevent embedding collapse
+
+model:
+  architecture: resnet152
+  embedding_dim: 128
+
+training:
+  epochs: 500
+  batch_size: 256
+  lr: 0.1
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_epochs: 10
+  
+  # Triplet loss specific parameters
+  loss: triplet
+  triplet:
+    margin: 0.3
+    mining: semi-hard  # IMPORTANT: semi-hard mining prevents collapse
+    squared: false
+
+data:
+  dataset: cifar100
+  data_dir: ./data
+  num_workers: 8
+  contrastive: false
+
+augmentation:
+  type: patch
+  probability: 0.5
+  patch_sizes: [0.25, 0.125, 0.0625]
+  replacement: mean
+
+evaluation:
+  eval_freq: 10
+  knn_k: 10
+
+logging:
+  use_wandb: true
+  wandb_project: clxai
+  run_name: triplet_cifar100_patch_aug
+  save_freq: 100
+
+output:
+  output_dir: results/models/cifar100_r152/triplet_patch

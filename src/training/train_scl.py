@@ -359,8 +359,8 @@ def main():
     parser.add_argument('--run_name', type=str, default='scl_supcon')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     parser.add_argument('--augmentation_type', type=str, default='none',
-                        choices=['none', 'patch', 'noise'],
-                        help='Augmentation type: none, patch (F-Fidelity), or noise (Gaussian)')
+                        choices=['none', 'patch', 'noise', 'pixel', 'pixel50'],
+                        help='Augmentation type: none, patch, noise, pixel (F-Fidelity 100%%), or pixel50 (F-Fidelity 50%%)')
     args = parser.parse_args()
     
     if args.config and Path(args.config).exists():
