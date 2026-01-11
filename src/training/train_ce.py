@@ -146,13 +146,18 @@ def train_ce_model(config: dict):
             config=config
         )
     
+    # Get augmentation type
+    augmentation_type = config.get('augmentation_type', 'none')
+    print(f"Augmentation type: {augmentation_type}")
+    
     # Data loaders
     train_loader, test_loader = get_data_loaders(
         dataset=dataset,
         data_dir=config.get('data_dir', './data'),
         batch_size=config.get('batch_size', 128),
         num_workers=config.get('num_workers', 4),
-        augment=True
+        augment=True,
+        augmentation_type=augmentation_type
     )
     
     # Model
@@ -255,6 +260,9 @@ def main():
     parser.add_argument('--no_wandb', action='store_true')
     parser.add_argument('--run_name', type=str, default='ce_baseline')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--augmentation_type', type=str, default='none',
+                        choices=['none', 'patch', 'noise'],
+                        help='Augmentation type: none, patch (F-Fidelity), or noise (Gaussian)')
     args = parser.parse_args()
     
     # Load config from file or use defaults
@@ -277,6 +285,9 @@ def main():
         if 'output' in config:
             for k, v in config['output'].items():
                 config[k] = v
+        # Handle augmentation config section
+        if 'augmentation' in config:
+            config['augmentation_type'] = config['augmentation'].get('type', 'none')
         # Override with command line args if provided
         if args.seed != 42:
             config['seed'] = args.seed
@@ -288,6 +299,8 @@ def main():
             config['dataset'] = args.dataset
         if args.architecture != 'resnet18':
             config['architecture'] = args.architecture
+        if args.augmentation_type != 'none':
+            config['augmentation_type'] = args.augmentation_type
     else:
         config = {
             'dataset': args.dataset,
@@ -304,7 +317,8 @@ def main():
             'wandb_project': 'clxai',
             'num_workers': 4,
             'save_freq': 50,
-            'seed': args.seed
+            'seed': args.seed,
+            'augmentation_type': args.augmentation_type
         }
     
     train_ce_model(config)

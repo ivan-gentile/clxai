@@ -1,0 +1,100 @@
+# Phase 1: Diagnostic Analysis of Existing Models
+# Objective: Understand geometric state of already-trained models
+
+experiment:
+  name: "phase1_diagnostic"
+  description: "Diagnostic analysis of existing CE, SCL, and Triplet models"
+  phase: 1
+
+# Existing model checkpoints to analyze
+models:
+  ce_baseline:
+    - path: "results/models/ce_seed0/best_model.pt"
+      seed: 0
+    - path: "results/models/ce_seed1/best_model.pt"
+      seed: 1
+    - path: "results/models/ce_seed2/best_model.pt"
+      seed: 2
+    - path: "results/models/ce_seed3/best_model.pt"
+      seed: 3
+    - path: "results/models/ce_seed4/best_model.pt"
+      seed: 4
+  
+  scl_supcon:
+    - path: "results/models/scl_seed0/best_model.pt"
+      seed: 0
+    - path: "results/models/scl_seed1/best_model.pt"
+      seed: 1
+    - path: "results/models/scl_seed2/best_model.pt"
+      seed: 2
+    - path: "results/models/scl_seed3/best_model.pt"
+      seed: 3
+    - path: "results/models/scl_seed4/best_model.pt"
+      seed: 4
+  
+  triplet:
+    - path: "results/models/triplet_fixed_seed0/best_model.pt"
+      seed: 0
+    - path: "results/models/triplet_fixed_seed1/best_model.pt"
+      seed: 1
+    - path: "results/models/triplet_fixed_seed2/best_model.pt"
+      seed: 2
+    - path: "results/models/triplet_fixed_seed3/best_model.pt"
+      seed: 3
+    - path: "results/models/triplet_fixed_seed4/best_model.pt"
+      seed: 4
+
+# Model configuration (for loading)
+model:
+  architecture: resnet18
+  num_classes: 10
+  norm_type: bn
+
+# Dataset configuration
+data:
+  dataset: cifar10
+  data_dir: /leonardo_scratch/fast/CNHPC_1905882/clxai/data
+  batch_size: 128
+  num_workers: 4
+
+# Evaluation settings
+evaluation:
+  # Adversarial robustness
+  adversarial:
+    enabled: true
+    attacks: [fgsm, pgd]
+    eps: 0.031373  # 8/255
+    pgd_steps: 20
+    pgd_step_size: 0.007843  # 2/255
+    n_samples: 1000
+  
+  # Faithfulness metrics
+  faithfulness:
+    enabled: true
+    saliency_methods: [vanilla_grad, integrated_grad]
+    n_steps: 20
+    n_samples: 500
+  
+  # Geometric analysis
+  geometric:
+    enabled: true
+    epsilon: 0.1
+    n_neighbors: 50
+    n_samples: 100
+  
+  # Gradient norm analysis
+  gradient_analysis:
+    enabled: true
+    n_batches: 50
+
+# Output configuration
+output:
+  output_dir: spline_theory/results/phase1_diagnostic
+  save_plots: true
+  save_metrics: true
+
+# Logging
+logging:
+  use_wandb: true
+  wandb_project: spline_theory
+  run_name: phase1_diagnostic

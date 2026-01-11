@@ -1,0 +1,47 @@
+# Triplet Loss with Patch Removal Augmentation
+# F-Fidelity style occlusion robustness + hard negative mining
+# Reference: Schroff et al. "FaceNet" (CVPR 2015)
+
+model:
+  architecture: resnet18
+  embedding_dim: 128
+
+training:
+  epochs: 500
+  batch_size: 256
+  lr: 0.1
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_epochs: 10
+  
+  # Triplet loss specific parameters
+  loss: triplet
+  triplet:
+    margin: 0.3
+    mining: semi-hard  # semi-hard prevents embedding collapse (hard mining causes it)
+    squared: false
+
+data:
+  dataset: cifar10
+  data_dir: ./data
+  num_workers: 4
+  contrastive: false  # Triplet loss uses single view per sample
+
+augmentation:
+  type: patch
+  probability: 0.5
+  patch_sizes: [0.25, 0.125, 0.0625]
+  replacement: mean
+
+evaluation:
+  eval_freq: 10
+  knn_k: 10
+
+logging:
+  use_wandb: true
+  wandb_project: clxai
+  run_name: scl_triplet_patch_aug
+  save_freq: 100
+
+output:
+  output_dir: results/models/triplet_patch_aug

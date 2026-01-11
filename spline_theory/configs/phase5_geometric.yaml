@@ -1,0 +1,122 @@
+# Phase 5: Geometric Validation
+# Objective: Directly test spline theory predictions
+
+experiment:
+  name: "phase5_geometric"
+  description: "Validate spline theory predictions through geometric analysis"
+  phase: 5
+
+# Models to analyze (from previous phases)
+models_to_analyze:
+  # Phase 1 diagnostic models
+  existing:
+    ce_baseline:
+      paths: "results/models/ce_seed{seed}/best_model.pt"
+      seeds: [0, 1, 2, 3, 4]
+    scl_supcon:
+      paths: "results/models/scl_seed{seed}/best_model.pt"
+      seeds: [0, 1, 2, 3, 4]
+    triplet:
+      paths: "results/models/triplet_seed{seed}/best_model.pt"
+      seeds: [0, 1, 2, 3, 4]
+  
+  # Phase 2 extended training (analyze trajectory)
+  phase2_checkpoints:
+    pattern: "spline_theory/results/phase2_extended/{variant}_seed{seed}/checkpoint_epoch_{epoch}.pt"
+    variants: [CE-Extended, CE-NoWD, CE-NoBN, CE-Minimal]
+    seeds: [0, 1, 2]
+    epochs: [100, 500, 1000, 2000, 5000, 10000]
+  
+  # Phase 3 best configurations
+  phase3_best:
+    pattern: "spline_theory/results/phase3_ablation/{config}_seed{seed}/best_model.pt"
+    # Configs to be filled after Phase 3 analysis
+
+# Geometric analysis configuration
+analysis:
+  # Local complexity estimation
+  local_complexity:
+    enabled: true
+    epsilon_values: [0.05, 0.1, 0.2]
+    n_neighbors: 100
+    n_samples: 200
+  
+  # Decision boundary analysis
+  boundary_analysis:
+    enabled: true
+    max_steps: 100
+    step_size: 0.01
+    n_samples: 100
+  
+  # Partition density comparison
+  partition_density:
+    enabled: true
+    n_samples: 200
+    compare_across_training: true
+
+# Comparisons to make
+comparisons:
+  # CE vs CL at same epoch
+  - name: "ce_vs_cl_matched"
+    description: "Compare CE and CL models at matched training epochs"
+    model_a: ce_baseline
+    model_b: scl_supcon
+    metrics: [local_complexity, boundary_distance, adversarial_robustness]
+  
+  # CE training trajectory
+  - name: "ce_training_evolution"
+    description: "Track geometric evolution during CE extended training"
+    models: phase2_checkpoints
+    metrics: [local_complexity, partition_density]
+  
+  # Post-grokking CE vs CL
+  - name: "post_grokking_comparison"
+    description: "Compare post-grokking CE with standard CL"
+    model_a: "CE-NoWD at epoch 10000"
+    model_b: scl_supcon
+    metrics: [local_complexity, faithfulness, adversarial_robustness]
+
+# Spline theory predictions to validate
+predictions:
+  P1:
+    name: "CL shows adversarial robustness earlier"
+    test: "Compare adversarial accuracy at matched epochs"
+    metric: pgd_accuracy
+    
+  P2:
+    name: "Extended CE matches CL faithfulness"
+    test: "Compare faithfulness after 10k epochs"
+    metric: composite_faithfulness
+    
+  P4:
+    name: "CL has larger regions around data points"
+    test: "Compare local complexity (lower = larger regions)"
+    metric: activation_pattern_diversity
+    
+  P5:
+    name: "BatchNorm removal helps CE more than CL"
+    test: "Compare BN vs NoBN impact across loss types"
+    metric: faithfulness_improvement
+
+# Dataset configuration
+data:
+  dataset: cifar10
+  data_dir: /leonardo_scratch/fast/CNHPC_1905882/clxai/data
+  batch_size: 128
+  num_workers: 4
+
+# Output configuration
+output:
+  output_dir: spline_theory/results/phase5_geometric
+  save_visualizations: true
+  generate_report: true
+
+# Logging
+logging:
+  use_wandb: true
+  wandb_project: spline_theory
+  run_name: phase5_geometric_validation
+
+# Resource estimates (analysis only, no training)
+resources:
+  estimated_gpu_hours: 20

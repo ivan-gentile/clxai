@@ -172,6 +172,10 @@ def train_scl_model(config: dict):
     use_contrastive_loader = loss_type == 'supcon'
     print(f"Using loss: {loss_type}")
     
+    # Get augmentation type
+    augmentation_type = config.get('augmentation_type', 'none')
+    print(f"Augmentation type: {augmentation_type}")
+    
     # Data loaders - contrastive mode for SupCon, single view for Triplet
     train_loader_cl, test_loader = get_data_loaders(
         dataset=dataset,
@@ -179,17 +183,19 @@ def train_scl_model(config: dict):
         batch_size=config.get('batch_size', 256),
         num_workers=config.get('num_workers', 4),
         contrastive=use_contrastive_loader,
-        augment=True  # Always augment for training
+        augment=True,  # Always augment for training
+        augmentation_type=augmentation_type
     )
     
-    # Regular loader for k-NN evaluation
+    # Regular loader for k-NN evaluation (no custom augmentation)
     train_loader_eval, _ = get_data_loaders(
         dataset=dataset,
         data_dir=config.get('data_dir', './data'),
         batch_size=config.get('batch_size', 256),
         num_workers=config.get('num_workers', 4),
         contrastive=False,
-        augment=False
+        augment=False,
+        augmentation_type='none'  # No augmentation for evaluation
     )
     
     # Model - encoder only for contrastive learning
@@ -352,6 +358,9 @@ def main():
     parser.add_argument('--no_wandb', action='store_true')
     parser.add_argument('--run_name', type=str, default='scl_supcon')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--augmentation_type', type=str, default='none',
+                        choices=['none', 'patch', 'noise'],
+                        help='Augmentation type: none, patch (F-Fidelity), or noise (Gaussian)')
     args = parser.parse_args()
     
     if args.config and Path(args.config).exists():
@@ -376,6 +385,9 @@ def main():
         if 'output' in config:
             for k, v in config['output'].items():
                 config[k] = v
+        # Handle augmentation config section
+        if 'augmentation' in config:
+            config['augmentation_type'] = config['augmentation'].get('type', 'none')
         # Override with command line args if provided
         if args.seed != 42:
             config['seed'] = args.seed
@@ -389,6 +401,8 @@ def main():
             config['dataset'] = args.dataset
         if args.architecture != 'resnet18':
             config['architecture'] = args.architecture
+        if args.augmentation_type != 'none':
+            config['augmentation_type'] = args.augmentation_type
     else:
         config = {
             'dataset': args.dataset,
@@ -416,7 +430,8 @@ def main():
             'eval_freq': 10,
             'warmup_epochs': 10,
             'knn_k': 10,
-            'seed': args.seed
+            'seed': args.seed,
+            'augmentation_type': args.augmentation_type
         }
     
     train_scl_model(config)

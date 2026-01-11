@@ -1,0 +1,46 @@
+# Supervised Contrastive Learning with Gaussian Noise Augmentation
+# Continuous perturbation robustness + SupCon loss
+# Reference: Khosla et al. "Supervised Contrastive Learning" (NeurIPS 2020)
+
+model:
+  architecture: resnet18
+  embedding_dim: 128
+
+training:
+  epochs: 500
+  batch_size: 256
+  lr: 0.5
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_epochs: 10
+  
+  # SupCon loss specific parameters
+  loss: supcon
+  supcon:
+    temperature: 0.07
+    base_temperature: 0.07
+
+data:
+  dataset: cifar10
+  data_dir: ./data
+  num_workers: 4
+  contrastive: true
+
+augmentation:
+  type: noise
+  probability: 0.5
+  std: 0.05
+  mean: 0.0
+
+evaluation:
+  eval_freq: 10
+  knn_k: 10
+
+logging:
+  use_wandb: true
+  wandb_project: clxai
+  run_name: scl_supcon_noise_aug
+  save_freq: 100
+
+output:
+  output_dir: results/models/scl_noise_aug

@@ -1,0 +1,109 @@
+# Phase 2: Extended Training Experiment
+# Objective: Test if CE models eventually reach CL-like geometry through grokking
+
+experiment:
+  name: "phase2_extended_training"
+  description: "Test grokking hypothesis - extended CE training with various configurations"
+  phase: 2
+
+# Training variants to run
+variants:
+  # Continue training existing CE models unchanged
+  - name: "CE-Extended"
+    base_checkpoint: "results/models/ce_seed{seed}/best_model.pt"
+    modifications:
+      weight_decay: 0.0005  # Keep original
+      norm_type: bn
+    epochs: 10000
+    seeds: [0, 1, 2]
+  
+  # Remove weight decay to enable grokking
+  - name: "CE-NoWD"
+    base_checkpoint: "results/models/ce_seed{seed}/best_model.pt"
+    modifications:
+      weight_decay: 0.0
+      norm_type: bn
+    epochs: 10000
+    seeds: [0, 1, 2]
+  
+  # Fresh start without BatchNorm
+  - name: "CE-NoBN"
+    base_checkpoint: null  # Fresh start
+    modifications:
+      weight_decay: 0.0005
+      norm_type: id
+    epochs: 10000
+    seeds: [0, 1, 2]
+  
+  # Minimal regularization: no WD, no BN
+  - name: "CE-Minimal"
+    base_checkpoint: null
+    modifications:
+      weight_decay: 0.0
+      norm_type: id
+    epochs: 10000
+    seeds: [0, 1, 2]
+
+# Model configuration
+model:
+  architecture: resnet18
+  num_classes: 10
+  embedding_dim: 128
+
+# Training configuration
+training:
+  batch_size: 128
+  lr: 0.1
+  momentum: 0.9
+  scheduler: cosine
+  warmup_epochs: 0
+
+# Checkpointing - dense saves at milestone epochs
+checkpointing:
+  epochs: [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]
+  save_optimizer: true
+  save_history: true
+
+# Evaluation during training
+evaluation:
+  # Evaluate every N epochs
+  eval_frequency: 100
+  
+  # What to evaluate
+  adversarial:
+    enabled: true
+    attacks: [pgd]
+    n_samples: 500
+  
+  faithfulness:
+    enabled: true
+    n_samples: 200
+  
+  geometric:
+    enabled: false  # Too expensive for frequent evaluation
+
+# Dataset configuration
+data:
+  dataset: cifar10
+  data_dir: /leonardo_scratch/fast/CNHPC_1905882/clxai/data
+  batch_size: 128
+  num_workers: 4
+  augment: true
+
+# Output configuration
+output:
+  base_dir: spline_theory/results/phase2_extended
+  # Each variant saved to: base_dir/{variant_name}_seed{seed}/
+
+# Logging
+logging:
+  use_wandb: true
+  wandb_project: spline_theory
+  run_name_template: "phase2_{variant}_seed{seed}"
+
+# Resource estimates
+resources:
+  gpu_hours_per_variant_per_seed: 40  # ~10k epochs
+  total_variants: 4
+  total_seeds: 3
+  estimated_total_hours: 480

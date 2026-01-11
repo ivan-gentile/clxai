@@ -1,5 +1,10 @@
 """
 CIFAR-10/100 data loading utilities for CLXAI.
+
+Supports multiple augmentation types:
+- 'none': Standard augmentation (RandomCrop, RandomHorizontalFlip)
+- 'patch': F-Fidelity style patch removal for occlusion robustness
+- 'noise': Gaussian noise for continuous perturbation robustness
 """
 
 import torch
@@ -7,6 +12,8 @@ from torch.utils.data import DataLoader
 import torchvision
 import torchvision.transforms as transforms
 from typing import Tuple, Optional
+
+from src.utils.augmentations import RandomPatchRemoval, GaussianNoiseAugmentation
 
 
 # CIFAR-10 statistics
@@ -28,28 +35,47 @@ def get_cifar100_stats() -> Tuple[Tuple[float, ...], Tuple[float, ...]]:
     return CIFAR100_MEAN, CIFAR100_STD
 
 
-def get_train_transforms(augment: bool = True) -> transforms.Compose:
+def get_train_transforms(
+    augment: bool = True,
+    augmentation_type: str = 'none'
+) -> transforms.Compose:
     """
     Get training transforms for CIFAR-10.
     
     Args:
         augment: Whether to apply data augmentation
+        augmentation_type: Type of augmentation - 'none', 'patch', or 'noise'
     
     Returns:
         Composed transforms
     """
+    transform_list = []
+    
     if augment:
-        return transforms.Compose([
+        transform_list.extend([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
         ])
-    else:
-        return transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
-        ])
+    
+    transform_list.append(transforms.ToTensor())
+    
+    # Add custom augmentation (applied on tensor in [0,1] range, before normalize)
+    if augmentation_type == 'patch':
+        transform_list.append(RandomPatchRemoval(
+            probability=0.5,
+            patch_sizes=(1/4, 1/8, 1/16),  # 8, 4, 2 pixels for CIFAR-10
+            replacement='mean',
+            dataset='cifar10'
+        ))
+    elif augmentation_type == 'noise':
+        transform_list.append(GaussianNoiseAugmentation(
+            probability=0.5,
+            std=0.05
+        ))
+    
+    transform_list.append(transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD))
+    
+    return transforms.Compose(transform_list)
 
 
 def get_test_transforms() -> transforms.Compose:
@@ -60,12 +86,18 @@ def get_test_transforms() -> transforms.Compose:
     ])
 
 
-def get_contrastive_transforms() -> transforms.Compose:
+def get_contrastive_transforms(augmentation_type: str = 'none') -> transforms.Compose:
     """
     Get transforms for contrastive learning.
     Returns two augmented views of each image.
+    
+    Args:
+        augmentation_type: Type of augmentation - 'none', 'patch', or 'noise'
+    
+    Returns:
+        Composed transforms
     """
-    return transforms.Compose([
+    transform_list = [
         transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomApply([
@@ -73,8 +105,25 @@ def get_contrastive_transforms() -> transforms.Compose:
         ], p=0.8),
         transforms.RandomGrayscale(p=0.2),
         transforms.ToTensor(),
-        transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD),
-    ])
+    ]
+    
+    # Add custom augmentation (applied on tensor in [0,1] range, before normalize)
+    if augmentation_type == 'patch':
+        transform_list.append(RandomPatchRemoval(
+            probability=0.5,
+            patch_sizes=(1/4, 1/8, 1/16),
+            replacement='mean',
+            dataset='cifar10'
+        ))
+    elif augmentation_type == 'noise':
+        transform_list.append(GaussianNoiseAugmentation(
+            probability=0.5,
+            std=0.05
+        ))
+    
+    transform_list.append(transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD))
+    
+    return transforms.Compose(transform_list)
 
 
 class TwoCropTransform:
@@ -94,6 +143,7 @@ def get_cifar10_loaders(
     augment: bool = True,
     contrastive: bool = False,
     pin_memory: bool = True,
+    augmentation_type: str = 'none',
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Get CIFAR-10 train and test data loaders.
@@ -105,14 +155,15 @@ def get_cifar10_loaders(
         augment: Whether to apply data augmentation (for CE training)
         contrastive: Whether to use contrastive transforms (for SCL training)
         pin_memory: Whether to pin memory for faster GPU transfer
+        augmentation_type: Type of augmentation - 'none', 'patch', or 'noise'
     
     Returns:
         train_loader, test_loader
     """
     if contrastive:
-        train_transform = TwoCropTransform(get_contrastive_transforms())
+        train_transform = TwoCropTransform(get_contrastive_transforms(augmentation_type))
     else:
-        train_transform = get_train_transforms(augment=augment)
+        train_transform = get_train_transforms(augment=augment, augmentation_type=augmentation_type)
     
     test_transform = get_test_transforms()
     
@@ -219,28 +270,47 @@ def denormalize(tensor: torch.Tensor, dataset: str = 'cifar10') -> torch.Tensor:
 # CIFAR-100 Functions
 # ============================================================================
 
-def get_cifar100_train_transforms(augment: bool = True) -> transforms.Compose:
+def get_cifar100_train_transforms(
+    augment: bool = True,
+    augmentation_type: str = 'none'
+) -> transforms.Compose:
     """
     Get training transforms for CIFAR-100.
     
     Args:
         augment: Whether to apply data augmentation
+        augmentation_type: Type of augmentation - 'none', 'patch', or 'noise'
     
     Returns:
         Composed transforms
     """
+    transform_list = []
+    
     if augment:
-        return transforms.Compose([
+        transform_list.extend([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD),
         ])
-    else:
-        return transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD),
-        ])
+    
+    transform_list.append(transforms.ToTensor())
+    
+    # Add custom augmentation (applied on tensor in [0,1] range, before normalize)
+    if augmentation_type == 'patch':
+        transform_list.append(RandomPatchRemoval(
+            probability=0.5,
+            patch_sizes=(1/4, 1/8, 1/16),
+            replacement='mean',
+            dataset='cifar100'
+        ))
+    elif augmentation_type == 'noise':
+        transform_list.append(GaussianNoiseAugmentation(
+            probability=0.5,
+            std=0.05
+        ))
+    
+    transform_list.append(transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD))
+    
+    return transforms.Compose(transform_list)
 
 
 def get_cifar100_test_transforms() -> transforms.Compose:
@@ -251,12 +321,18 @@ def get_cifar100_test_transforms() -> transforms.Compose:
     ])
 
 
-def get_cifar100_contrastive_transforms() -> transforms.Compose:
+def get_cifar100_contrastive_transforms(augmentation_type: str = 'none') -> transforms.Compose:
     """
     Get transforms for contrastive learning on CIFAR-100.
     Returns two augmented views of each image.
+    
+    Args:
+        augmentation_type: Type of augmentation - 'none', 'patch', or 'noise'
+    
+    Returns:
+        Composed transforms
     """
-    return transforms.Compose([
+    transform_list = [
         transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomApply([
@@ -264,8 +340,25 @@ def get_cifar100_contrastive_transforms() -> transforms.Compose:
         ], p=0.8),
         transforms.RandomGrayscale(p=0.2),
         transforms.ToTensor(),
-        transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD),
-    ])
+    ]
+    
+    # Add custom augmentation (applied on tensor in [0,1] range, before normalize)
+    if augmentation_type == 'patch':
+        transform_list.append(RandomPatchRemoval(
+            probability=0.5,
+            patch_sizes=(1/4, 1/8, 1/16),
+            replacement='mean',
+            dataset='cifar100'
+        ))
+    elif augmentation_type == 'noise':
+        transform_list.append(GaussianNoiseAugmentation(
+            probability=0.5,
+            std=0.05
+        ))
+    
+    transform_list.append(transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD))
+    
+    return transforms.Compose(transform_list)
 
 
 def get_cifar100_loaders(
@@ -275,6 +368,7 @@ def get_cifar100_loaders(
     augment: bool = True,
     contrastive: bool = False,
     pin_memory: bool = True,
+    augmentation_type: str = 'none',
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Get CIFAR-100 train and test data loaders.
@@ -286,14 +380,15 @@ def get_cifar100_loaders(
         augment: Whether to apply data augmentation (for CE training)
         contrastive: Whether to use contrastive transforms (for SCL training)
         pin_memory: Whether to pin memory for faster GPU transfer
+        augmentation_type: Type of augmentation - 'none', 'patch', or 'noise'
     
     Returns:
         train_loader, test_loader
     """
     if contrastive:
-        train_transform = TwoCropTransform(get_cifar100_contrastive_transforms())
+        train_transform = TwoCropTransform(get_cifar100_contrastive_transforms(augmentation_type))
     else:
-        train_transform = get_cifar100_train_transforms(augment=augment)
+        train_transform = get_cifar100_train_transforms(augment=augment, augmentation_type=augmentation_type)
     
     test_transform = get_cifar100_test_transforms()
     
@@ -345,6 +440,7 @@ def get_data_loaders(
     augment: bool = True,
     contrastive: bool = False,
     pin_memory: bool = True,
+    augmentation_type: str = 'none',
 ) -> Tuple[DataLoader, DataLoader]:
     """
     Generic function to get train and test data loaders.
@@ -357,6 +453,7 @@ def get_data_loaders(
         augment: Whether to apply data augmentation
         contrastive: Whether to use contrastive transforms
         pin_memory: Whether to pin memory for faster GPU transfer
+        augmentation_type: Type of augmentation - 'none', 'patch', or 'noise'
     
     Returns:
         train_loader, test_loader
@@ -368,7 +465,8 @@ def get_data_loaders(
             num_workers=num_workers,
             augment=augment,
             contrastive=contrastive,
-            pin_memory=pin_memory
+            pin_memory=pin_memory,
+            augmentation_type=augmentation_type
         )
     elif dataset == 'cifar100':
         return get_cifar100_loaders(
@@ -377,7 +475,8 @@ def get_data_loaders(
             num_workers=num_workers,
             augment=augment,
             contrastive=contrastive,
-            pin_memory=pin_memory
+            pin_memory=pin_memory,
+            augmentation_type=augmentation_type
         )
     else:
         raise ValueError(f"Unknown dataset: {dataset}. Use 'cifar10' or 'cifar100'.")
@@ -439,3 +538,26 @@ if __name__ == "__main__":
     print(f"CIFAR-100 via generic: {len(train_loader)} train batches")
     print(f"CIFAR-10 classes: {get_num_classes('cifar10')}")
     print(f"CIFAR-100 classes: {get_num_classes('cifar100')}")
+    
+    print("\n" + "=" * 50)
+    print("Augmentation Types")
+    print("=" * 50)
+    
+    # Test patch augmentation
+    train_loader_patch, _ = get_data_loaders(
+        dataset='cifar10', batch_size=64, augmentation_type='patch'
+    )
+    print(f"Patch augmentation loader: {len(train_loader_patch)} train batches")
+    
+    # Test noise augmentation
+    train_loader_noise, _ = get_data_loaders(
+        dataset='cifar10', batch_size=64, augmentation_type='noise'
+    )
+    print(f"Noise augmentation loader: {len(train_loader_noise)} train batches")
+    
+    # Test contrastive with augmentation
+    train_loader_cl_patch, _ = get_data_loaders(
+        dataset='cifar10', batch_size=64, contrastive=True, augmentation_type='patch'
+    )
+    images, labels = next(iter(train_loader_cl_patch))
+    print(f"Contrastive + Patch: {len(images)} views, shape {images[0].shape}")
