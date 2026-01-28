@@ -16,9 +16,10 @@ import numpy as np
 import torch
 from typing import Tuple, Optional
 
-# CIFAR-10 statistics for replacement values
+# Dataset statistics for replacement values
 CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR100_MEAN = (0.5071, 0.4867, 0.4408)
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
 
 
 class RandomPatchRemoval:
@@ -52,6 +53,8 @@ class RandomPatchRemoval:
         
         if dataset == 'cifar100':
             self.mean = torch.tensor(CIFAR100_MEAN).view(3, 1, 1)
+        elif dataset == 'imagenet':
+            self.mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
         else:
             self.mean = torch.tensor(CIFAR10_MEAN).view(3, 1, 1)
     

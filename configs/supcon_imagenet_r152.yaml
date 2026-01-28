@@ -1,0 +1,39 @@
+# Supervised Contrastive Learning - ImageNet + ResNet-152 (baseline, no custom aug)
+# Based on SupCon paper (Khosla et al., NeurIPS 2020)
+
+model:
+  architecture: resnet152_imagenet
+  embedding_dim: 128
+
+training:
+  epochs: 840
+  batch_size: 128
+  lr: 0.5
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_epochs: 10
+  
+  loss: supcon
+  supcon:
+    temperature: 0.07
+    base_temperature: 0.07
+
+data:
+  dataset: imagenet
+  data_dir: /leonardo_scratch/fast/CNHPC_1905882/clxai/data/imagenet-1k
+  num_workers: 8
+  contrastive: true
+  augmentation_type: none  # Standard contrastive augmentation only
+
+evaluation:
+  eval_freq: 30
+  knn_k: 200
+
+logging:
+  use_wandb: true
+  wandb_project: clxai
+  run_name: supcon_imagenet_r152
+  save_freq: 30
+
+output:
+  output_dir: results/models/imagenet_r152/supcon

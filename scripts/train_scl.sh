@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=CNHPC_1905882
 #SBATCH --partition=boost_usr_prod
-#SBATCH --qos=normal
+#SBATCH --qos=boost_qos_lprod
 #SBATCH --time=08:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

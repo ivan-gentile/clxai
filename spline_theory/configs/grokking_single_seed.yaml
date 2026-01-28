@@ -1,0 +1,60 @@
+experiment:
+  name: "grokking_single_seed"
+  description: "Single-seed 10k-epoch CIFAR10 runs for CE/SupCon/Triplet (no BN, Adam, grad clip)"
+
+# Shared defaults for contrastive runs (SupCon/Triplet)
+seed: 0
+dataset: cifar10
+architecture: resnet18
+embedding_dim: 128
+norm_type: id
+
+epochs: 10000
+batch_size: 256
+lr: 0.001
+momentum: 0.9
+weight_decay: 0.01
+optimizer: adam
+grad_clip: 1.0
+warmup_epochs: 10
+scheduler: cosine_with_warmup
+
+loss: supcon
+triplet:
+  margin: 0.3
+  mining: hard
+  squared: false
+
+eval_freq: 100
+save_freq: 100
+checkpoint_epochs: [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]
+knn_k: 10
+
+data_dir: /leonardo_scratch/fast/CNHPC_1905882/clxai/data
+num_workers: 4
+contrastive: true
+augment: true
+augmentation_type: none
+
+output_dir: spline_theory/results/grokking_single_seed/supcon_seed0
+use_wandb: false
+wandb_project: spline_theory
+run_name: grokking_supcon_seed0
+
+# CE-specific settings (used by launch script)
+ce:
+  max_epochs: 10000
+  batch_size: 128
+  lr: 0.001
+  momentum: 0.9
+  weight_decay: 0.01
+  optimizer: adam
+  grad_clip: 1.0
+  norm_type: id
+  eval_frequency: 100
+  checkpoint_epochs: [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]
+  data_dir: /leonardo_scratch/fast/CNHPC_1905882/clxai/data
+  num_workers: 4
+  output_dir: spline_theory/results/grokking_single_seed/ce_seed0
+  use_wandb: false
+  run_name: grokking_ce_seed0

@@ -21,6 +21,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.models.resnet import get_model
+from spline_theory.models.resnet_variants import get_resnet_variant
 from src.models.classifiers import KNNClassifier, LinearClassifier, train_linear_classifier
 from src.training.losses import SupConLossV2, TripletLoss
 from src.utils.data import get_data_loaders, get_num_classes
@@ -49,7 +50,8 @@ def train_epoch_scl(
     optimizer: optim.Optimizer,
     device: torch.device,
     epoch: int,
-    loss_type: str = 'supcon'
+    loss_type: str = 'supcon',
+    grad_clip: float = None
 ) -> dict:
     """Train for one epoch with contrastive/metric loss."""
     model.train()
@@ -80,6 +82,11 @@ def train_epoch_scl(
         loss = criterion(embeddings, labels)
         
         loss.backward()
+        
+        # Gradient clipping to prevent explosion (important without BatchNorm)
+        if grad_clip is not None:
+            nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+        
         optimizer.step()
         
         total_loss += loss.item()
@@ -172,6 +179,10 @@ def train_scl_model(config: dict):
     use_contrastive_loader = loss_type == 'supcon'
     print(f"Using loss: {loss_type}")
     
+    # Normalization type for encoder (defaults to BatchNorm)
+    norm_type = config.get('norm_type', 'bn')
+    print(f"Normalization type: {norm_type}")
+    
     # Get augmentation type
     augmentation_type = config.get('augmentation_type', 'none')
     print(f"Augmentation type: {augmentation_type}")
@@ -199,9 +210,11 @@ def train_scl_model(config: dict):
     )
     
     # Model - encoder only for contrastive learning
-    model = get_model(
+    # Use variant model when norm_type is specified
+    model = get_resnet_variant(
         architecture=architecture,
         num_classes=num_classes,
+        norm_type=norm_type,
         encoder_only=True,
         embedding_dim=config.get('embedding_dim', 128)
     ).to(device)
@@ -224,13 +237,24 @@ def train_scl_model(config: dict):
     else:
         raise ValueError(f"Unknown loss type: {loss_type}")
     
-    # Optimizer - SupCon paper uses LARS, we use SGD for simplicity
-    optimizer = optim.SGD(
-        model.parameters(),
-        lr=config.get('lr', 0.5),
-        momentum=config.get('momentum', 0.9),
-        weight_decay=config.get('weight_decay', 1e-4)
-    )
+    # Optimizer - SupCon paper uses LARS, we support SGD and Adam
+    optimizer_type = config.get('optimizer', 'sgd').lower()
+    
+    if optimizer_type == 'adam':
+        optimizer = optim.Adam(
+            model.parameters(),
+            lr=config.get('lr', 1e-3),
+            weight_decay=config.get('weight_decay', 0.0)
+        )
+    else:  # sgd
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=config.get('lr', 0.5),
+            momentum=config.get('momentum', 0.9),
+            weight_decay=config.get('weight_decay', 1e-4)
+        )
+    
+    grad_clip = config.get('grad_clip', None)
     
     # Scheduler
     epochs = config.get('epochs', 500)
@@ -250,10 +274,13 @@ def train_scl_model(config: dict):
     best_acc = 0.0
     start_time = time.time()
     
+    checkpoint_epochs = set(config.get('checkpoint_epochs', []))
+    
     for epoch in range(1, epochs + 1):
         # Train with contrastive/metric loss
         train_metrics = train_epoch_scl(
-            model, train_loader_cl, criterion, optimizer, device, epoch, loss_type
+            model, train_loader_cl, criterion, optimizer, device, epoch, loss_type,
+            grad_clip=grad_clip
         )
         
         scheduler.step()
@@ -287,8 +314,8 @@ def train_scl_model(config: dict):
         if WANDB_AVAILABLE and config.get('use_wandb', True):
             wandb.log(train_metrics, step=epoch)
         
-        # Save checkpoint periodically
-        if epoch % config.get('save_freq', 100) == 0:
+        # Save checkpoint periodically or on milestone epochs
+        if (epoch % config.get('save_freq', 100) == 0) or (epoch in checkpoint_epochs):
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -347,6 +374,11 @@ def main():
     parser.add_argument('--epochs', type=int, default=500)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=0.5)
+    parser.add_argument('--weight_decay', type=float, default=1e-4)
+    parser.add_argument('--optimizer', type=str, default='sgd', choices=['sgd', 'adam'],
+                        help='Optimizer type')
+    parser.add_argument('--grad_clip', type=float, default=None,
+                        help='Gradient clipping max norm (None to disable)')
     parser.add_argument('--temperature', type=float, default=0.07, help='Temperature for SupCon loss')
     parser.add_argument('--loss', type=str, default='supcon', choices=['supcon', 'triplet'],
                         help='Loss type: supcon or triplet')
@@ -358,6 +390,9 @@ def main():
     parser.add_argument('--no_wandb', action='store_true')
     parser.add_argument('--run_name', type=str, default='scl_supcon')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--norm_type', type=str, default='bn',
+                        choices=['bn', 'gn', 'ln', 'id'],
+                        help='Normalization type for encoder')
     parser.add_argument('--augmentation_type', type=str, default='none',
                         choices=['none', 'patch', 'noise', 'pixel', 'pixel50'],
                         help='Augmentation type: none, patch, noise, pixel (F-Fidelity 100%%), or pixel50 (F-Fidelity 50%%)')
@@ -370,6 +405,8 @@ def main():
         if 'model' in config:
             config['architecture'] = config['model'].get('architecture', 'resnet18')
             config['embedding_dim'] = config['model'].get('embedding_dim', 128)
+            if 'norm_type' in config['model']:
+                config['norm_type'] = config['model']['norm_type']
         if 'training' in config:
             for k, v in config['training'].items():
                 config[k] = v
@@ -401,6 +438,10 @@ def main():
             config['dataset'] = args.dataset
         if args.architecture != 'resnet18':
             config['architecture'] = args.architecture
+        if args.weight_decay != 1e-4:
+            config['weight_decay'] = args.weight_decay
+        if args.norm_type != 'bn':
+            config['norm_type'] = args.norm_type
         if args.augmentation_type != 'none':
             config['augmentation_type'] = args.augmentation_type
     else:
@@ -411,7 +452,9 @@ def main():
             'batch_size': args.batch_size,
             'lr': args.lr,
             'momentum': 0.9,
-            'weight_decay': 1e-4,
+            'weight_decay': args.weight_decay,
+            'optimizer': args.optimizer,
+            'grad_clip': args.grad_clip,
             'temperature': args.temperature,
             'loss': args.loss,
             'triplet': {
@@ -431,6 +474,7 @@ def main():
             'warmup_epochs': 10,
             'knn_k': 10,
             'seed': args.seed,
+            'norm_type': args.norm_type,
             'augmentation_type': args.augmentation_type
         }
     

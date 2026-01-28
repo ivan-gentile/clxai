@@ -1,0 +1,53 @@
+# Supervised Contrastive Learning - ImageNet-50 + ResNet-50 (NO F-Fidelity augmentation)
+# Tests core hypothesis: Is SCL naturally robust to pixel-flipping XAI evaluation?
+#
+# Same as supcon_imagenet50_r50.yaml but WITHOUT pixel50 augmentation
+# Uses only standard contrastive augmentations (ColorJitter, GaussianBlur, etc.)
+
+model:
+  architecture: resnet50_imagenet
+  embedding_dim: 128
+  pretrained: false  # Train from scratch
+
+training:
+  epochs: 160
+  batch_size: 128
+  
+  # RAdam optimizer (from reference code)
+  optimizer: radam
+  lr: 0.001
+  weight_decay: 0.0001
+  warmup_epochs: 5
+  
+  # SupCon loss settings
+  loss: supcon
+  supcon:
+    temperature: 0.07        # Critical: 0.07 >> 0.1 (learned from R152 experiments)
+    base_temperature: 0.07
+
+data:
+  dataset: imagenet50        # 50-class subset
+  data_dir: /leonardo_scratch/fast/CNHPC_1905882/clxai/data/imagenet-1k
+  num_classes: 50
+  num_workers: 8
+  contrastive: true
+  augmentation_type: none    # NO F-Fidelity augmentation - test natural SCL robustness
+
+evaluation:
+  eval_freq: 10              # kNN every 10 epochs
+  knn_k: 200
+  
+  # Linear probe settings (Stage 2)
+  linear_probe:
+    epochs: 100
+    lr: 0.1
+    num_classes: 50
+
+logging:
+  use_wandb: true
+  wandb_project: clxai
+  run_name: supcon_imagenet50_r50_noaug
+  save_freq: 10
+
+output:
+  output_dir: results/models/imagenet50_r50/supcon_noaug

@@ -54,3 +54,5 @@ data/*.tar.gz
 data/*.zip
 data/cifar-10-batches-py/
 data/cifar-100-python/
+
+data/imagenet-1k

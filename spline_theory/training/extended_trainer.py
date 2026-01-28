@@ -82,7 +82,8 @@ class ExtendedTrainer:
         eval_frequency: int = 10,
         use_wandb: bool = True,
         project_name: str = "spline_theory",
-        run_name: str = "extended_training"
+        run_name: str = "extended_training",
+        grad_clip: Optional[float] = None
     ):
         """
         Args:
@@ -99,6 +100,7 @@ class ExtendedTrainer:
             use_wandb: Whether to log to wandb
             project_name: Wandb project name
             run_name: Wandb run name
+            grad_clip: Maximum gradient norm for clipping (None to disable)
         """
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -113,6 +115,7 @@ class ExtendedTrainer:
         self.use_wandb = use_wandb and WANDB_AVAILABLE
         self.project_name = project_name
         self.run_name = run_name
+        self.grad_clip = grad_clip
         
         # Create checkpoint directory
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -146,9 +149,13 @@ class ExtendedTrainer:
             loss = self.criterion(outputs, labels)
             loss.backward()
             
-            # Track gradient norm before optimizer step
+            # Track gradient norm before clipping
             grad_norm = compute_gradient_norm(self.model)
             gradient_norms.append(grad_norm)
+            
+            # Gradient clipping to prevent explosion
+            if self.grad_clip is not None:
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
             
             self.optimizer.step()
             
@@ -395,12 +402,21 @@ def train_extended(
     
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(
-        model.parameters(),
-        lr=config.get("lr", 0.1),
-        momentum=config.get("momentum", 0.9),
-        weight_decay=config.get("weight_decay", 5e-4)
-    )
+    optimizer_type = config.get("optimizer", "sgd").lower()
+    
+    if optimizer_type == "adam":
+        optimizer = optim.Adam(
+            model.parameters(),
+            lr=config.get("lr", 1e-3),
+            weight_decay=config.get("weight_decay", 0.0)
+        )
+    else:  # sgd
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=config.get("lr", 0.1),
+            momentum=config.get("momentum", 0.9),
+            weight_decay=config.get("weight_decay", 5e-4)
+        )
     
     # Scheduler
     max_epochs = config.get("max_epochs", 10000)
@@ -420,7 +436,8 @@ def train_extended(
         eval_frequency=config.get("eval_frequency", 10),
         use_wandb=config.get("use_wandb", True),
         project_name=config.get("project_name", "spline_theory"),
-        run_name=config.get("run_name", "extended_training")
+        run_name=config.get("run_name", "extended_training"),
+        grad_clip=config.get("grad_clip", None)
     )
     
     # Train
@@ -445,6 +462,9 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--weight_decay", type=float, default=5e-4)
+    parser.add_argument("--optimizer", type=str, default="sgd", choices=["sgd", "adam"])
+    parser.add_argument("--grad_clip", type=float, default=None,
+                        help="Gradient clipping max norm (None to disable)")
     parser.add_argument("--checkpoint_dir", type=str, default="checkpoints")
     parser.add_argument("--resume", type=str, default=None)
     parser.add_argument("--seed", type=int, default=42)
@@ -465,6 +485,8 @@ if __name__ == "__main__":
             "batch_size": args.batch_size,
             "lr": args.lr,
             "weight_decay": args.weight_decay,
+            "optimizer": args.optimizer,
+            "grad_clip": args.grad_clip,
             "checkpoint_dir": args.checkpoint_dir,
             "seed": args.seed,
             "use_wandb": not args.no_wandb,
