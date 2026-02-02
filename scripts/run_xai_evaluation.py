@@ -173,6 +173,9 @@ def evaluate_pixel_flipping(model, test_loader, device, num_samples=None, save_p
         disable_warnings=True,
     )
     
+    # Initialize CAM methods once (not per sample)
+    cam_methods = get_cam_methods(model, target_layers)
+    
     all_scores = []
     global_idx = 0
     
@@ -184,6 +187,9 @@ def evaluate_pixel_flipping(model, test_loader, device, num_samples=None, save_p
         
         for i in range(images.size(0)):
             if num_samples and global_idx >= num_samples:
+                # Cleanup before early return
+                for cam_obj in cam_methods.values():
+                    cleanup_cam(cam_obj)
                 return pd.DataFrame(all_scores)
             
             p_idx = preds[i].item()
@@ -191,8 +197,6 @@ def evaluate_pixel_flipping(model, test_loader, device, num_samples=None, save_p
             img_tensor = images[i:i+1]
             
             record = {"idx": global_idx, "true": g_idx, "pred": p_idx}
-            
-            cam_methods = get_cam_methods(model, target_layers)
             
             for name, cam_obj in cam_methods.items():
                 with torch.enable_grad():
@@ -205,7 +209,6 @@ def evaluate_pixel_flipping(model, test_loader, device, num_samples=None, save_p
                 if np.all(grayscale_cam == 0):
                     print(f"Skipping PF for {name}, sample {global_idx}: all-zero attribution")
                     record[f"{name}_PF_AUC"] = np.nan
-                    cleanup_cam(cam_obj)
                     continue
                 
                 pf_score = pixel_flipping_metric(
@@ -218,14 +221,15 @@ def evaluate_pixel_flipping(model, test_loader, device, num_samples=None, save_p
                 
                 auc_val = np.trapz(pf_score) / (len(pf_score) - 1)
                 record[f"{name}_PF_AUC"] = auc_val
-                
-                cleanup_cam(cam_obj)
             
             all_scores.append(record)
             global_idx += 1
-            del cam_methods
         
         torch.cuda.empty_cache()
+    
+    # Cleanup CAM methods at the end
+    for cam_obj in cam_methods.values():
+        cleanup_cam(cam_obj)
     
     return pd.DataFrame(all_scores)
 
@@ -252,6 +256,9 @@ def evaluate_irof(model, test_loader, device, num_samples=None,
         return_aggregate=False,
     )
     
+    # Initialize CAM methods once (not per sample)
+    cam_methods = get_cam_methods(model, target_layers)
+    
     all_scores = []
     global_idx = 0
     
@@ -263,6 +270,9 @@ def evaluate_irof(model, test_loader, device, num_samples=None,
         
         for i in range(images.size(0)):
             if num_samples and global_idx >= num_samples:
+                # Cleanup before early return
+                for cam_obj in cam_methods.values():
+                    cleanup_cam(cam_obj)
                 return pd.DataFrame(all_scores)
             
             p_idx = preds[i].item()
@@ -270,8 +280,6 @@ def evaluate_irof(model, test_loader, device, num_samples=None,
             img_tensor = images[i:i+1]
             
             record = {"idx": global_idx, "true": g_idx, "pred": p_idx}
-            
-            cam_methods = get_cam_methods(model, target_layers)
             
             for name, cam_obj in cam_methods.items():
                 with torch.enable_grad():
@@ -306,14 +314,15 @@ def evaluate_irof(model, test_loader, device, num_samples=None,
                 except Exception as e:
                     print(f"Error IROF for {name}, sample {global_idx}: {e}")
                     record[f"{name}_IROF_AOC"] = np.nan
-                
-                cleanup_cam(cam_obj)
             
             all_scores.append(record)
             global_idx += 1
-            del cam_methods
         
         torch.cuda.empty_cache()
+    
+    # Cleanup CAM methods at the end
+    for cam_obj in cam_methods.values():
+        cleanup_cam(cam_obj)
     
     return pd.DataFrame(all_scores)
 
@@ -330,6 +339,9 @@ def evaluate_sparseness(model, test_loader, device, num_samples=None,
     
     sparsity_metric = quantus.Sparseness(disable_warnings=True, display_progressbar=False)
     
+    # Initialize CAM methods once (not per sample)
+    cam_methods = get_cam_methods(model, target_layers)
+    
     all_scores = []
     global_idx = 0
     
@@ -341,6 +353,9 @@ def evaluate_sparseness(model, test_loader, device, num_samples=None,
         
         for i in range(images.size(0)):
             if num_samples and global_idx >= num_samples:
+                # Cleanup before early return
+                for cam_obj in cam_methods.values():
+                    cleanup_cam(cam_obj)
                 return pd.DataFrame(all_scores)
             
             p_idx = preds[i].item()
@@ -348,8 +363,6 @@ def evaluate_sparseness(model, test_loader, device, num_samples=None,
             img_tensor = images[i:i+1]
             
             record = {"idx": global_idx, "true": g_idx, "pred": p_idx}
-            
-            cam_methods = get_cam_methods(model, target_layers)
             
             for name, cam_obj in cam_methods.items():
                 with torch.enable_grad():
@@ -362,7 +375,6 @@ def evaluate_sparseness(model, test_loader, device, num_samples=None,
                 if np.all(grayscale_cam == 0):
                     print(f"Skipping Sparseness for {name}, sample {global_idx}: all-zero attribution")
                     record[f"{name}_Sparsity"] = np.nan
-                    cleanup_cam(cam_obj)
                     continue
                 
                 sparsity_score = sparsity_metric(
@@ -374,13 +386,15 @@ def evaluate_sparseness(model, test_loader, device, num_samples=None,
                 )[0]
                 
                 record[f"{name}_Sparsity"] = sparsity_score
-                cleanup_cam(cam_obj)
             
             all_scores.append(record)
             global_idx += 1
-            del cam_methods
         
         torch.cuda.empty_cache()
+    
+    # Cleanup CAM methods at the end
+    for cam_obj in cam_methods.values():
+        cleanup_cam(cam_obj)
     
     return pd.DataFrame(all_scores)
 
@@ -397,6 +411,9 @@ def evaluate_complexity(model, test_loader, device, num_samples=None,
     
     complexity_metric = quantus.Complexity(disable_warnings=True, display_progressbar=False)
     
+    # Initialize CAM methods once (not per sample)
+    cam_methods = get_cam_methods(model, target_layers)
+    
     all_scores = []
     global_idx = 0
     
@@ -408,6 +425,9 @@ def evaluate_complexity(model, test_loader, device, num_samples=None,
         
         for i in range(images.size(0)):
             if num_samples and global_idx >= num_samples:
+                # Cleanup before early return
+                for cam_obj in cam_methods.values():
+                    cleanup_cam(cam_obj)
                 return pd.DataFrame(all_scores)
             
             p_idx = preds[i].item()
@@ -415,8 +435,6 @@ def evaluate_complexity(model, test_loader, device, num_samples=None,
             img_tensor = images[i:i+1]
             
             record = {"idx": global_idx, "true": g_idx, "pred": p_idx}
-            
-            cam_methods = get_cam_methods(model, target_layers)
             
             for name, cam_obj in cam_methods.items():
                 with torch.enable_grad():
@@ -429,7 +447,6 @@ def evaluate_complexity(model, test_loader, device, num_samples=None,
                 if np.all(grayscale_cam == 0):
                     print(f"Skipping Complexity for {name}, sample {global_idx}: all-zero attribution")
                     record[f"{name}_Complexity"] = np.nan
-                    cleanup_cam(cam_obj)
                     continue
                 
                 complexity_score = complexity_metric(
@@ -441,13 +458,15 @@ def evaluate_complexity(model, test_loader, device, num_samples=None,
                 )[0]
                 
                 record[f"{name}_Complexity"] = complexity_score
-                cleanup_cam(cam_obj)
             
             all_scores.append(record)
             global_idx += 1
-            del cam_methods
         
         torch.cuda.empty_cache()
+    
+    # Cleanup CAM methods at the end
+    for cam_obj in cam_methods.values():
+        cleanup_cam(cam_obj)
     
     return pd.DataFrame(all_scores)
 
@@ -464,6 +483,9 @@ def evaluate_robustness(model, test_loader, device, num_samples=None,
     model.eval()
     target_layers = [model.encoder.layer4[-1]]
     
+    # Initialize CAM methods once (not per sample)
+    cam_methods = get_cam_methods(model, target_layers)
+    
     all_scores = []
     global_idx = 0
     
@@ -475,6 +497,9 @@ def evaluate_robustness(model, test_loader, device, num_samples=None,
         
         for i in range(images.size(0)):
             if num_samples and global_idx >= num_samples:
+                # Cleanup before early return
+                for cam_obj in cam_methods.values():
+                    cleanup_cam(cam_obj)
                 return pd.DataFrame(all_scores)
             
             torch.manual_seed(global_idx)
@@ -490,8 +515,6 @@ def evaluate_robustness(model, test_loader, device, num_samples=None,
             
             record = {"idx": global_idx, "true": g_idx, "pred": p_idx}
             
-            cam_methods = get_cam_methods(model, target_layers)
-            
             for name, cam_obj in cam_methods.items():
                 with torch.enable_grad():
                     cam_orig = cam_obj(
@@ -506,14 +529,15 @@ def evaluate_robustness(model, test_loader, device, num_samples=None,
                 
                 robustness_score = ssim(cam_orig, cam_pert, data_range=1.0)
                 record[f"{name}_SSIM_Robustness"] = robustness_score
-                
-                cleanup_cam(cam_obj)
             
             all_scores.append(record)
             global_idx += 1
-            del cam_methods
         
         torch.cuda.empty_cache()
+    
+    # Cleanup CAM methods at the end
+    for cam_obj in cam_methods.values():
+        cleanup_cam(cam_obj)
     
     return pd.DataFrame(all_scores)
 
@@ -531,6 +555,9 @@ def evaluate_contrastivity(model, test_loader, device, num_samples=None,
     model.eval()
     target_layers = [model.encoder.layer4[-1]]
     
+    # Initialize CAM methods once (not per sample)
+    cam_methods = get_cam_methods(model, target_layers)
+    
     all_scores = []
     global_idx = 0
     
@@ -547,6 +574,9 @@ def evaluate_contrastivity(model, test_loader, device, num_samples=None,
         
         for i in range(images.size(0)):
             if num_samples and global_idx >= num_samples:
+                # Cleanup before early return
+                for cam_obj in cam_methods.values():
+                    cleanup_cam(cam_obj)
                 return pd.DataFrame(all_scores)
             
             p_idx = preds[i].item()
@@ -560,8 +590,6 @@ def evaluate_contrastivity(model, test_loader, device, num_samples=None,
                 "pred": p_idx,
                 "contrast_class": c_idx
             }
-            
-            cam_methods = get_cam_methods(model, target_layers)
             
             for name, cam_obj in cam_methods.items():
                 with torch.enable_grad():
@@ -580,14 +608,15 @@ def evaluate_contrastivity(model, test_loader, device, num_samples=None,
                 
                 record[f"{name}_SSIM_Contrastivity"] = contrast_ssim
                 record[f"{name}_L2_Contrastivity"] = contrast_l2
-                
-                cleanup_cam(cam_obj)
             
             all_scores.append(record)
             global_idx += 1
-            del cam_methods
         
         torch.cuda.empty_cache()
+    
+    # Cleanup CAM methods at the end
+    for cam_obj in cam_methods.values():
+        cleanup_cam(cam_obj)
     
     return pd.DataFrame(all_scores)
 
