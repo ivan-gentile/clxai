@@ -321,7 +321,7 @@ def evaluate_sparseness(model, test_loader, device, num_samples=None,
     model.eval()
     target_layers = [model.encoder.layer4[-1]]
     
-    sparsity_metric = quantus.Sparseness(disable_warnings=True)
+    sparsity_metric = quantus.Sparseness(disable_warnings=True, display_progressbar=False)
     
     all_scores = []
     global_idx = 0
@@ -381,7 +381,7 @@ def evaluate_complexity(model, test_loader, device, num_samples=None,
     model.eval()
     target_layers = [model.encoder.layer4[-1]]
     
-    complexity_metric = quantus.Complexity(disable_warnings=True)
+    complexity_metric = quantus.Complexity(disable_warnings=True, display_progressbar=False)
     
     all_scores = []
     global_idx = 0
