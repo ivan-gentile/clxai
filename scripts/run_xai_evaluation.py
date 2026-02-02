@@ -201,6 +201,13 @@ def evaluate_pixel_flipping(model, test_loader, device, num_samples=None, save_p
                         targets=[ClassifierOutputTarget(p_idx)]
                     )[0, :]
                 
+                # Skip if attribution is all zeros
+                if np.all(grayscale_cam == 0):
+                    print(f"Skipping PF for {name}, sample {global_idx}: all-zero attribution")
+                    record[f"{name}_PF_AUC"] = np.nan
+                    cleanup_cam(cam_obj)
+                    continue
+                
                 pf_score = pixel_flipping_metric(
                     model=model,
                     x_batch=img_tensor.detach().cpu().numpy(),
@@ -351,6 +358,13 @@ def evaluate_sparseness(model, test_loader, device, num_samples=None,
                         targets=[ClassifierOutputTarget(p_idx)]
                     )[0, :]
                 
+                # Skip if attribution is all zeros
+                if np.all(grayscale_cam == 0):
+                    print(f"Skipping Sparseness for {name}, sample {global_idx}: all-zero attribution")
+                    record[f"{name}_Sparsity"] = np.nan
+                    cleanup_cam(cam_obj)
+                    continue
+                
                 sparsity_score = sparsity_metric(
                     model=model,
                     x_batch=img_tensor.detach().cpu().numpy(),
@@ -410,6 +424,13 @@ def evaluate_complexity(model, test_loader, device, num_samples=None,
                         input_tensor=img_tensor,
                         targets=[ClassifierOutputTarget(p_idx)]
                     )[0, :]
+                
+                # Skip if attribution is all zeros
+                if np.all(grayscale_cam == 0):
+                    print(f"Skipping Complexity for {name}, sample {global_idx}: all-zero attribution")
+                    record[f"{name}_Complexity"] = np.nan
+                    cleanup_cam(cam_obj)
+                    continue
                 
                 complexity_score = complexity_metric(
                     model=model,
