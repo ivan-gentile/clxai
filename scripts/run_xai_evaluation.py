@@ -171,6 +171,7 @@ def evaluate_pixel_flipping(model, test_loader, device, num_samples=None, save_p
         perturb_baseline="black",
         features_in_step=32,
         disable_warnings=True,
+        display_progressbar=False,
     )
     
     # Initialize CAM methods once (not per sample)
