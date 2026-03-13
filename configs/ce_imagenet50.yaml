@@ -1,0 +1,27 @@
+# Cross-Entropy - ImageNet-S50 + ResNet-50
+# Uses AdamW optimizer with label smoothing for fair comparison
+
+model:
+  architecture: resnet50_imagenet
+  num_classes: 50
+  pretrained: false
+
+training:
+  epochs: 160
+  batch_size: 128
+  optimizer: adamw
+  lr: 0.001
+  weight_decay: 0.0001
+  warmup_epochs: 5
+  scheduler: cosine
+  label_smoothing: 0.1
+
+data:
+  dataset: imagenet50
+  data_dir: ./data/imagenet-1k
+  num_classes: 50
+  num_workers: 8
+
+output:
+  output_dir: results/imagenet50/ce
+  save_freq: 10

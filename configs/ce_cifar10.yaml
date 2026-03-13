@@ -1,0 +1,25 @@
+# Cross-Entropy Baseline - CIFAR10 + ResNet-18
+# Expected accuracy: ~93-94%
+
+model:
+  architecture: resnet18
+  num_classes: 10
+
+training:
+  epochs: 200
+  batch_size: 128
+  optimizer: sgd
+  lr: 0.1
+  momentum: 0.9
+  weight_decay: 0.0005
+  scheduler: cosine
+
+data:
+  dataset: cifar10
+  data_dir: ./data
+  num_workers: 4
+  augment: true
+
+output:
+  output_dir: results/cifar10/ce
+  save_freq: 50

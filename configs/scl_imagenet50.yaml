@@ -1,0 +1,39 @@
+# Supervised Contrastive Learning - ImageNet-S50 + ResNet-50
+# Two-stage: encoder pretraining (160 epochs) + linear probe (100 epochs)
+# Uses RAdam optimizer with contrastive augmentations
+
+model:
+  architecture: resnet50_imagenet
+  embedding_dim: 128
+  pretrained: false
+
+training:
+  epochs: 160
+  batch_size: 128
+  optimizer: radam
+  lr: 0.001
+  weight_decay: 0.0001
+  warmup_epochs: 5
+  scheduler: cosine
+
+  loss: supcon
+  supcon:
+    temperature: 0.07
+    base_temperature: 0.07
+
+data:
+  dataset: imagenet50
+  data_dir: ./data/imagenet-1k
+  num_classes: 50
+  num_workers: 8
+  contrastive: true
+
+evaluation:
+  linear_probe:
+    epochs: 100
+    lr: 0.1
+    num_classes: 50
+
+output:
+  output_dir: results/imagenet50/scl
+  save_freq: 10
